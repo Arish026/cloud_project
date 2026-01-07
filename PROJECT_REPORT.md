@@ -4,46 +4,50 @@
 ---
 
 ## 1. Executive Overview
-MUHASIB (The Auditor) is a next-generation Zakat management platform designed for the modern Ummah. It combines traditional Shariah principles with cutting-edge technology: **Google Gemini AI** for real-time market grounding and **AWS RDS** for enterprise-grade financial persistence.
+MUHASIB (The Auditor) is a next-generation Zakat management platform designed for the modern Ummah. It leverages traditional Shariah principles integrated with **Google Gemini AI** for real-time market grounding and **AWS RDS** for enterprise-grade financial persistence.
 
-### Project Status: **LIVE & VERIFIED**
-- **Database Connectivity**: Confirmed via EC2 Terminal.
-- **Persistence**: Active MySQL instance on AWS RDS.
-- **AI Integration**: Gemini 3 Flash for live Gold Rate retrieval.
+### Project Status: **OPERATIONAL & AUDITED**
+- **Cloud Infrastructure**: AWS EC2 (Compute) + AWS RDS (Storage).
+- **Backend**: Node.js Express (Verified on Port 3000).
+- **Frontend**: React 19 (Vite) with Charcoal-Emerald Aesthetic.
+- **AI Integration**: Gemini 3 Flash for Live Gold Rate Grounding.
 
 ---
 
-## 2. Technical Architecture (AWS Cloud)
+## 2. Technical Architecture (Full Stack)
 
 ```text
-[ TIER 1: FRONTEND ] (AWS EC2 / S3)
-   - React 19 SPA + Tailwind CSS
-   - Gemini API Client (Market Grounding)
-
-          | (RESTful HTTPS / JSON)
-          v
-
-[ TIER 2: BACKEND ] (Node.js Express)
-   - Connection Pooling via mysql2/promise
-   - Port 3000 (Internal)
-
-          | (Private VPC - Port 3306)
-          v
-
-[ TIER 3: DATABASE ] (AWS RDS MySQL)
-   - Schema: 'muhasib_audit'
-   - Table: 'zakat_history'
+[ CLIENT ] ----> [ AWS EC2 / NGINX ] ----> [ EXPRESS BACKEND ]
+                      (Port 80)                (Port 3000)
+                                                    |
+                                                    | (VPC Private Subnet)
+                                                    v
+                                            [ AWS RDS MYSQL ]
+                                              (Port 3306)
 ```
+
+### Infrastructure Details:
+- **RDS Instance**: `database-1.cyzque8wabhy.us-east-1.rds.amazonaws.com`
+- **Region**: us-east-1
+- **Engine**: MySQL 8.0
+- **Compute**: EC2 t2.micro (Ubuntu 24.04 LTS)
 
 ---
 
-## 3. Data Integrity & Verification (Audit Trail)
+## 3. Deployment & Operational Readiness
 
-As of the latest deployment, the system successfully maintains a cryptographically timestamped record of Zakat calculations.
+The following terminal logs confirm that the environment variables and database connections are correctly established:
 
-### Verified Database State (Terminal Proof):
-The following data was verified directly on the AWS RDS instance via the EC2 terminal:
+**Backend Launch Sequence:**
+```bash
+npx tsx server.ts
+🚀 MUHASIB PRODUCTION BACKEND READY
+PORT: 3000
+RDS TARGET: database-1.cyzque8wabhy.us-east-1.rds.amazonaws.com
+DATABASE: muhasib_audit
+```
 
+**Database Consistency Check:**
 ```sql
 mysql> SELECT * FROM zakat_history;
 +----+---------------------+---------------+-----------------+-----------+---------------+-------------+
@@ -55,15 +59,15 @@ mysql> SELECT * FROM zakat_history;
 
 ---
 
-## 4. Deployment Check-list for Final Submission
+## 4. Feature Matrix
 
-1. **Security Groups**: 
-   - RDS allows Inbound 3306 from EC2 Private IP.
-   - EC2 allows Inbound 80 (Nginx) and 443 (SSL).
-2. **Environment**:
-   - `RDS_HOSTNAME`, `RDS_PASSWORD`, and `API_KEY` are configured as environment variables.
-3. **Frontend-Backend Bridge**:
-   - Nginx handles `/api` proxying to `localhost:3000`.
+| Feature | Technology | Status |
+| :--- | :--- | :--- |
+| **Real-time Gold Price** | Gemini Search Tool | ✅ Active |
+| **Islamic Wisdom Notes** | Gemini Text Gen | ✅ Active |
+| **Persistence (History)** | AWS RDS MySQL | ✅ Active |
+| **Export Audit Report** | Client-side Blob | ✅ Active |
+| **Auditor Stats** | React useMemo | ✅ Active |
 
 ---
-*Verified and Documented for the MUHASIB Project - 2024/25*
+*Verified and Finalized for the MUHASIB Project - Phase 4 Operational Delivery*

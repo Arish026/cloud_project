@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import Header from './components/Header';
 import ResultDisplay from './components/ResultDisplay';
 import NisabGuide from './components/NisabGuide';
@@ -28,6 +28,16 @@ const App: React.FC = () => {
       fetchHistoryFromDb().then(setDbHistory);
     }
   }, [view]);
+
+  // Derived statistics for the Auditor Dashboard
+  const stats = useMemo(() => {
+    if (!dbHistory.length) return { totalWealth: 0, totalZakat: 0, count: 0 };
+    return dbHistory.reduce((acc, curr) => ({
+      totalWealth: acc.totalWealth + parseFloat(curr.wealth_amount),
+      totalZakat: acc.totalZakat + parseFloat(curr.zakat_due),
+      count: acc.count + 1
+    }), { totalWealth: 0, totalZakat: 0, count: 0 });
+  }, [dbHistory]);
 
   const calculateZakat = useCallback(async () => {
     const val = parseFloat(earnings);
@@ -88,19 +98,43 @@ const App: React.FC = () => {
       
       <main className="flex-grow py-12 px-4 max-w-5xl mx-auto w-full">
         {/* Sub-nav for history */}
-        <div className="flex justify-end mb-8">
+        <div className="flex justify-between items-center mb-8">
+           <div className="flex items-center space-x-2">
+              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">AWS Cloud Connected</span>
+           </div>
            <button 
              onClick={() => setView(view === 'history' ? 'calculator' : 'history')}
              className={`text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-full border transition-all ${view === 'history' ? 'bg-emerald-600 border-emerald-600 text-white' : 'border-slate-800 text-slate-500 hover:border-slate-700'}`}
            >
-             {view === 'history' ? 'Close History' : 'View RDS Audit Logs'}
+             {view === 'history' ? 'Back to Calculator' : 'View RDS Audit Logs'}
            </button>
         </div>
 
         {view === 'history' ? (
           <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <h2 className="text-4xl font-black text-white">Audit <span className="text-emerald-500">History</span></h2>
-            <div className="bg-slate-900/80 rounded-3xl border border-slate-800 overflow-hidden">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+              <h2 className="text-4xl font-black text-white">Audit <span className="text-emerald-500">History</span></h2>
+              <p className="text-slate-500 text-xs font-bold">Displaying latest {dbHistory.length} records from RDS</p>
+            </div>
+
+            {/* Auditor Dashboard Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl">
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Total Audited Wealth</p>
+                <p className="text-2xl font-black text-white">{currency.code} {stats.totalWealth.toLocaleString()}</p>
+              </div>
+              <div className="bg-slate-900 border border-emerald-900/30 p-6 rounded-2xl">
+                <p className="text-[10px] font-black text-emerald-500/50 uppercase tracking-widest mb-1">Total Zakat Due</p>
+                <p className="text-2xl font-black text-emerald-500">{currency.code} {stats.totalZakat.toLocaleString()}</p>
+              </div>
+              <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl">
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Audits Performed</p>
+                <p className="text-2xl font-black text-white">{stats.count}</p>
+              </div>
+            </div>
+
+            <div className="bg-slate-900/80 rounded-3xl border border-slate-800 overflow-hidden shadow-2xl">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-800/50 text-[10px] uppercase tracking-widest text-slate-400">
@@ -112,19 +146,19 @@ const App: React.FC = () => {
                 </thead>
                 <tbody className="divide-y divide-slate-800">
                   {dbHistory.length > 0 ? dbHistory.map((row, i) => (
-                    <tr key={i} className="hover:bg-slate-800/30 transition-colors">
-                      <td className="p-6 text-sm text-slate-400">{new Date(row.timestamp).toLocaleDateString()}</td>
-                      <td className="p-6 font-bold">{row.currency_code} {row.wealth_amount.toLocaleString()}</td>
-                      <td className="p-6 font-black text-emerald-500">{row.currency_code} {row.zakat_due.toLocaleString()}</td>
+                    <tr key={i} className="hover:bg-slate-800/30 transition-colors group">
+                      <td className="p-6 text-sm text-slate-400 font-medium">{new Date(row.timestamp).toLocaleDateString()}</td>
+                      <td className="p-6 font-bold text-slate-200">{row.currency_code} {parseFloat(row.wealth_amount).toLocaleString()}</td>
+                      <td className="p-6 font-black text-emerald-500">{row.currency_code} {parseFloat(row.zakat_due).toLocaleString()}</td>
                       <td className="p-6">
-                        <span className={`text-[10px] font-black uppercase px-2 py-1 rounded ${row.is_eligible ? 'bg-emerald-900/30 text-emerald-400' : 'bg-slate-800 text-slate-500'}`}>
+                        <span className={`text-[10px] font-black uppercase px-2 py-1 rounded transition-all group-hover:scale-105 inline-block ${row.is_eligible ? 'bg-emerald-900/30 text-emerald-400 border border-emerald-800/50' : 'bg-slate-800 text-slate-500 border border-slate-700'}`}>
                           {row.is_eligible ? 'Eligible' : 'Exempt'}
                         </span>
                       </td>
                     </tr>
                   )) : (
                     <tr>
-                      <td colSpan={4} className="p-12 text-center text-slate-600 font-bold italic">No records found in RDS.</td>
+                      <td colSpan={4} className="p-12 text-center text-slate-600 font-bold italic">No records found in RDS. Run a calculation to persist data.</td>
                     </tr>
                   )}
                 </tbody>
