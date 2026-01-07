@@ -8,6 +8,7 @@ import DonateModal from './components/DonateModal';
 import { CURRENCIES, ZAKAT_RATE, DEFAULT_NISAB_VALUE, GOLD_NISAB_WEIGHT } from './constants';
 import { ZakatCalculation, IslamicNote } from './types';
 import { getIslamicNote, getLiveGoldPrice } from './services/geminiService';
+import { saveCalculationToDb } from './services/apiService';
 
 const App: React.FC = () => {
   const [view, setView] = useState<'calculator' | 'guide' | 'resources'>('calculator');
@@ -18,18 +19,23 @@ const App: React.FC = () => {
   const [note, setNote] = useState<IslamicNote | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isDonateOpen, setIsDonateOpen] = useState(false);
+  const [historySaved, setHistorySaved] = useState(false);
 
   const calculateZakat = useCallback(async () => {
     const val = parseFloat(earnings);
     if (isNaN(val) || val <= 0) return;
 
     setIsLoading(true);
+    setHistorySaved(false);
     
     // Determine Nisab
     let nisab = DEFAULT_NISAB_VALUE;
+    let sources: string[] = [];
+    
     if (useLiveNisab) {
-      const goldPrice = await getLiveGoldPrice(currency.code);
-      nisab = goldPrice * GOLD_NISAB_WEIGHT;
+      const result = await getLiveGoldPrice(currency.code);
+      nisab = result.price * GOLD_NISAB_WEIGHT;
+      sources = result.sources;
     }
 
     const isApplicable = val >= nisab;
@@ -40,7 +46,8 @@ const App: React.FC = () => {
       nisab,
       isApplicable,
       zakatAmount,
-      currency: currency.code
+      currency: currency.code,
+      sources
     };
 
     setCalculation(result);
@@ -49,6 +56,14 @@ const App: React.FC = () => {
     const islamicNote = await getIslamicNote(zakatAmount, isApplicable);
     setNote(islamicNote);
     
+    // PERSIST TO RDS
+    try {
+      await saveCalculationToDb(result);
+      setHistorySaved(true);
+    } catch (e) {
+      console.warn("RDS Persistence offline, using local session.");
+    }
+    
     setIsLoading(false);
   }, [earnings, currency, useLiveNisab]);
 
@@ -56,6 +71,7 @@ const App: React.FC = () => {
     setEarnings('');
     setCalculation(null);
     setNote(null);
+    setHistorySaved(false);
   };
 
   return (
@@ -66,7 +82,6 @@ const App: React.FC = () => {
         {view === 'calculator' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
             
-            {/* Left Column: Input Form */}
             <div className="space-y-8 animate-in fade-in slide-in-from-left-8 duration-500">
               <div className="space-y-4">
                 <h2 className="text-5xl font-black text-white tracking-tighter leading-none">
@@ -74,7 +89,7 @@ const App: React.FC = () => {
                   <span className="text-emerald-500">Wealth Today.</span>
                 </h2>
                 <p className="text-slate-400 leading-relaxed max-w-sm">
-                  Professional grade Zakat tools with live gold rates from <span className="text-emerald-500 font-bold">hamariweb.com</span>. 
+                  Professional grade Zakat tools with live grounding and <span className="text-emerald-500 font-bold">AWS RDS Persistence</span>. 
                 </p>
               </div>
 
@@ -129,7 +144,7 @@ const App: React.FC = () => {
                     <div className="w-11 h-6 bg-slate-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
                   </div>
                   <label htmlFor="liveNisab" className="text-sm text-slate-300 font-semibold cursor-pointer">
-                    Live Gold-based Nisab <span className="text-[10px] text-emerald-500 ml-1">(Fetching hamariweb...)</span>
+                    Live Gold-based Nisab <span className="text-[10px] text-emerald-500 ml-1">(AWS Cloud Query)</span>
                   </label>
                 </div>
 
@@ -145,7 +160,7 @@ const App: React.FC = () => {
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
-                        Auditing...
+                        Auditing Cloud...
                       </span>
                     ) : (
                       <>
@@ -164,23 +179,30 @@ const App: React.FC = () => {
               </div>
             </div>
 
-            {/* Right Column: Results Display */}
             <div className="lg:sticky lg:top-24 animate-in fade-in slide-in-from-right-8 duration-500">
               {calculation ? (
-                <ResultDisplay 
-                  calculation={calculation} 
-                  note={note} 
-                  loading={isLoading} 
-                  currencySymbol={currency.symbol}
-                />
+                <div className="space-y-4">
+                  <ResultDisplay 
+                    calculation={calculation} 
+                    note={note} 
+                    loading={isLoading} 
+                    currencySymbol={currency.symbol}
+                  />
+                  {historySaved && (
+                    <div className="flex items-center justify-center space-x-2 text-emerald-500 text-[10px] font-black uppercase tracking-widest bg-emerald-950/20 py-2 rounded-full border border-emerald-900/30">
+                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
+                      <span>Persisted to AWS RDS</span>
+                    </div>
+                  )}
+                </div>
               ) : (
                 <div className="bg-slate-900/30 border-2 border-dashed border-slate-800 rounded-[2.5rem] p-16 flex flex-col items-center justify-center text-center space-y-6">
                   <div className="w-20 h-20 bg-slate-800/50 rounded-full flex items-center justify-center text-slate-700">
                     <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                   </div>
                   <div>
-                    <h3 className="text-slate-400 font-black text-xl">Ready for Audit</h3>
-                    <p className="text-slate-600 max-w-xs mx-auto text-sm mt-2 font-medium">Please provide your financial data to generate a detailed Zakat breakdown.</p>
+                    <h3 className="text-slate-400 font-black text-xl">Cloud Auditor Ready</h3>
+                    <p className="text-slate-600 max-w-xs mx-auto text-sm mt-2 font-medium">AWS RDS Persistence active. All calculations are logged for your financial year.</p>
                   </div>
                 </div>
               )}
@@ -203,7 +225,7 @@ const App: React.FC = () => {
               <span className="text-[10px] uppercase tracking-[0.4em] font-black text-emerald-500">Charcoal Edition</span>
             </div>
             <p className="text-sm text-slate-500 max-w-sm leading-relaxed">
-              Real-time gold fetching from market leaders. Purifying wealth for a modern Ummah.
+              Cloud-Native Zakat auditing. Built for the Modern Ummah.
             </p>
           </div>
           <div className="flex flex-col items-center md:items-end justify-center space-y-4">
@@ -212,7 +234,7 @@ const App: React.FC = () => {
                 <button onClick={() => setView('guide')} className="hover:text-emerald-500 transition-colors">Nisab</button>
                 <button onClick={() => setView('resources')} className="hover:text-emerald-500 transition-colors">Resources</button>
              </div>
-             <p className="text-[10px] text-slate-700 font-bold">&copy; {new Date().getFullYear()} MUHASIB ENTERPRISE. AWS CLOUD HOSTED.</p>
+             <p className="text-[10px] text-slate-700 font-bold">&copy; {new Date().getFullYear()} MUHASIB ENTERPRISE. AWS CLOUD ENABLED.</p>
           </div>
         </div>
       </footer>

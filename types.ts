@@ -5,6 +5,7 @@ export interface ZakatCalculation {
   isApplicable: boolean;
   zakatAmount: number;
   currency: string;
+  sources?: string[];
 }
 
 export interface IslamicNote {
