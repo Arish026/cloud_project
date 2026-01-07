@@ -2,19 +2,18 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-// Note: On your EC2, ensure you run: npm install mysql2
 import mysql from 'mysql2/promise';
 
 dotenv.config();
 
 const app = express();
+// Using 'any' cast for middleware to bypass version-specific type mismatches often found in EC2 environments
 app.use(cors() as any);
 app.use(express.json() as any);
 
 // AWS RDS CONFIGURATION
-// Use the exact values you used in your terminal test
 const dbConfig = {
-  host: process.env.RDS_HOSTNAME || 'YOUR_RDS_ENDPOINT', 
+  host: process.env.RDS_HOSTNAME || 'database-1.cyzque8wabhy.us-east-1.rds.amazonaws.com', 
   user: process.env.RDS_USERNAME || 'admin',
   password: process.env.RDS_PASSWORD,
   database: process.env.RDS_DB_NAME || 'muhasib_audit',
@@ -24,7 +23,7 @@ const dbConfig = {
   queueLimit: 0
 };
 
-// Singleton connection pool for better performance on EC2
+// Singleton connection pool
 const pool = mysql.createPool(dbConfig);
 
 // ENDPOINT: Save calculation to RDS
