@@ -18,16 +18,31 @@ const App: React.FC = () => {
   const [calculation, setCalculation] = useState<ZakatCalculation | null>(null);
   const [note, setNote] = useState<IslamicNote | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isRefreshingHistory, setIsRefreshingHistory] = useState(false);
   const [isDonateOpen, setIsDonateOpen] = useState(false);
   const [historySaved, setHistorySaved] = useState(false);
   const [dbHistory, setDbHistory] = useState<any[]>([]);
+  const [lastSync, setLastSync] = useState<Date>(new Date());
+
+  const loadHistory = useCallback(async () => {
+    setIsRefreshingHistory(true);
+    try {
+      const data = await fetchHistoryFromDb();
+      setDbHistory(data);
+      setLastSync(new Date());
+    } catch (e) {
+      console.error("Fetch history failed", e);
+    } finally {
+      setIsRefreshingHistory(false);
+    }
+  }, []);
 
   // Fetch history when switching to history view
   useEffect(() => {
     if (view === 'history') {
-      fetchHistoryFromDb().then(setDbHistory);
+      loadHistory();
     }
-  }, [view]);
+  }, [view, loadHistory]);
 
   // Derived statistics for the Auditor Dashboard
   const stats = useMemo(() => {
@@ -72,14 +87,18 @@ const App: React.FC = () => {
     setNote(islamicNote);
     
     try {
-      await saveCalculationToDb(result);
-      setHistorySaved(true);
+      const saveResponse = await saveCalculationToDb(result);
+      if (saveResponse) {
+        setHistorySaved(true);
+        // Refresh local history state immediately after save
+        await loadHistory();
+      }
     } catch (e) {
       console.warn("RDS Persist Fail - Check Backend Connection");
     }
     
     setIsLoading(false);
-  }, [earnings, currency, useLiveNisab]);
+  }, [earnings, currency, useLiveNisab, loadHistory]);
 
   const handleReset = () => {
     setEarnings('');
@@ -91,7 +110,7 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen flex flex-col bg-[#121212] text-slate-200">
       <Header 
-        currentView={view === 'history' ? 'calculator' : view} 
+        currentView={view === 'history' ? 'calculator' : (view as any)} 
         onViewChange={(v) => setView(v as any)} 
         onDonateClick={() => setIsDonateOpen(true)} 
       />
@@ -100,8 +119,10 @@ const App: React.FC = () => {
         {/* Sub-nav for history */}
         <div className="flex justify-between items-center mb-8">
            <div className="flex items-center space-x-2">
-              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">AWS Cloud Connected</span>
+              <div className={`w-2 h-2 rounded-full ${isRefreshingHistory ? 'bg-amber-500 animate-spin' : 'bg-emerald-500 animate-pulse'}`}></div>
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                {isRefreshingHistory ? 'Syncing RDS...' : 'AWS Cloud Connected'}
+              </span>
            </div>
            <button 
              onClick={() => setView(view === 'history' ? 'calculator' : 'history')}
@@ -114,8 +135,22 @@ const App: React.FC = () => {
         {view === 'history' ? (
           <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-              <h2 className="text-4xl font-black text-white">Audit <span className="text-emerald-500">History</span></h2>
-              <p className="text-slate-500 text-xs font-bold">Displaying latest {dbHistory.length} records from RDS</p>
+              <div className="space-y-1">
+                <h2 className="text-4xl font-black text-white">Audit <span className="text-emerald-500">History</span></h2>
+                <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest flex items-center">
+                  Last Synced: {lastSync.toLocaleTimeString()}
+                </p>
+              </div>
+              <div className="flex items-center space-x-3">
+                <button 
+                  onClick={loadHistory}
+                  disabled={isRefreshingHistory}
+                  className="bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-slate-700 transition-all flex items-center space-x-2"
+                >
+                  <svg className={`w-3 h-3 ${isRefreshingHistory ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                  <span>Manual Refresh</span>
+                </button>
+              </div>
             </div>
 
             {/* Auditor Dashboard Stats */}
